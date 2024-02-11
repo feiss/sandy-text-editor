@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>font editor</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        :root {
+            --SIZE: 10px;
+            --W: 6;
+            --H: 8;
+        }
+
+        body {
+            user-select: none;
+        }
+
+        #canvas {
+            background-color: #444;
+            padding: 1rem;
+            margin: 10rem 0 3rem 20rem;
+            display: flex;
+            width: calc(var(--SIZE) * var(--W));
+            height: calc(var(--SIZE) * var(--H));
+            flex-wrap: wrap
+        }
+
+        #canvas span {
+            display: inline-block;
+            width: calc(var(--SIZE) - 1px);
+            height: calc(var(--SIZE) - 1px);
+            background-color: #666;
+            margin-right: 1px;
+            margin-bottom: 1px;
+        }
+
+        #canvas span.on {
+            background-color: #111;
+        }
+
+        blockquote {
+            user-select: text;
+            background-color: #111;
+            padding: 2rem;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="canvas"></div>
+    <canvas id="preview" width="400" height="10"></canvas>
+    <blockquote id="code"></blockquote>
+    <button onclick="localStorage.clear(); window.reloadPage()">💣</button>
+</body>
+<script>
+    const $ = q => document.querySelector(q);
+    const $$ = q => document.querySelectorAll(q);
+    const $c = el => document.createElement(el);
+    const CHARS = ' abcdefghijklmnopqrstuvwxyz0123456789!,.-_=?+`":;@#$%&*()<>';
+
+    const canvas = $('#canvas');
+    let drawing = false;
+    let color = false;
+    let ctx = $('#preview').getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    let font = JSON.parse(localStorage.getItem('font') || '{}');
+    let current_char = null;
+
+    const W = 6;
+    const H = 8;
+    for (let y = 0, i = 0; y < H; y++) {
+        for (let x = 0; x < W; x++, i++) {
+            const cell = $c('span');
+            cell.innerHTML = '&nbsp;';
+            cell.id = 'cell' + i;
+            canvas.appendChild(cell);
+            cell.addEventListener('mousedown', on_mouse);
+            cell.addEventListener('mousemove', on_mouse);
+            document.addEventListener('mouseup', on_mouse);
+            document.addEventListener('keyup', on_key);
+        }
+    }
+
+    update_code();
+
+    function on_key(ev) {
+        if (CHARS.indexOf(ev.key) == -1) {
+            return;
+        }
+
+        current_char = ev.key;
+        if (font[current_char] === undefined) {
+            font[current_char] = '0'.repeat(H * W);
+        }
+
+        const code = font[current_char];
+
+        for (let i = 0; i < code.length; i++) {
+            const cell = $('#cell' + i);
+            if (code[i] == '1') {
+                cell.classList.add('on');
+            } else {
+                cell.classList.remove('on');
+            }
+        }
+        font[current_char];
+
+
+        update_code();
+
+    }
+
+
+    function on_mouse(ev) {
+        if (current_char === null) {
+            return;
+        }
+
+        if (ev.type == 'mousedown') {
+            drawing = true;
+            color = !ev.target.classList.contains('on');
+        }
+        if (ev.type == 'mouseup') {
+            drawing = false;
+        }
+        if (drawing) {
+            if (color) {
+                ev.target.classList.add('on');
+            } else {
+                ev.target.classList.remove('on');
+            }
+        }
+
+        // 
+
+        if (ev.target == $('blockquote')) {
+            return;
+        }
+
+        update_code();
+
+    }
+
+    function update_code() {
+        if (current_char !== null) {
+            const cells = $('#canvas').children;
+            let t = '';
+            for (let i = 0; i < W * H; i++) {
+                t += cells[i].classList.contains('on') ? 1 : 0;
+            }
+            font[current_char] = t;
+        }
+
+        let text = 'const FONT = {<br>';
+        for (let f in font) {
+            text += `'${f}': '${font[f]}',<br>`;
+        }
+        text += '};'
+        $('blockquote').innerHTML = text;
+
+        localStorage.setItem('font', JSON.stringify(font));
+
+
+        let i = 0;
+        for (const ch in font) {
+            draw_char(2 + i * W, 1, ch);
+            i++;
+        }
+
+
+    }
+
+
+
+    function draw_char(xx, yy, ch) {
+        const glyph = font[ch] || '0000000000111100001001000010010000100100001001000011110000000000';
+        if (ch == '' || ch == ' ') return;
+        for (let y = 0, i = 0; y < H; y++) {
+            for (let x = 0; x < W; x++, i++) {
+                ctx.fillStyle = glyph[i] == '1' ? '#999' : '#000';
+                ctx.fillRect(xx + x, yy + y, 1, 1);
+            }
+        }
+    }
+</script>
+
+</html>
