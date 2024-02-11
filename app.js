@@ -1,28 +1,30 @@
 // diegofg.com
 
 // if sand can be also spawn with mouse
-const SAND_WITH_MOUSE = false;
+let options = {
+    sandy_mouse: false,
+}
 
 
 const $ = q => document.querySelector(q);
 const $$ = q => document.querySelectorAll(q);
 const $c = el => document.createElement(el);
 
-const W = 355;
+const W = 362;
 const H = 200;
 let window_ratio = 1;
 let canvas, ctx;
 let cursor = { x: 0, y: 0, col: 0, line: 0, caret: true };
 let lines;
 
-// editor stuff
-const CHARS = ' abcdefghijklmnopqrstuvwxyz0123456789!,.-_=?+`":;@#$%&*()<>';
+const CHARS = ' abcdefghijklmnopqrstuvwxyz0123456789!,.-_=?+`":;@#$%&*()<>\'/[]{}|';
 const MARGIN = 5;
 const LINE_HEIGHT = 10;
 const CHARW = 6;
 const CHARH = 8;
-const MAX_LINES = 10;
+const MAX_LINES = 19;
 const MAX_COLS = Math.floor((W - MARGIN * 2) / CHARW);
+const LOAD_FILE = "";//"En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lentejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas con sus pantuflos de lo mismo, los días de entre semana se honraba con su vellori de lo más fino. Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años, era de complexión recia, seco de carnes, enjuto de rostro; gran madrugador y amigo de la caza. Quieren decir que tenía el sobrenombre de Quijada o Quesada (...)"
 
 
 // sim stuff
@@ -44,6 +46,16 @@ const PALETTE = [
 ]
 let painting = false;
 
+
+const BLANK = { brush: AIR, ch: ' ' };
+let KEYWORDS = {};
+KEYWORDS[SAND] = 'sand,beach'.split(',');
+KEYWORDS[WATER] = 'water,river,sea,ocean,h2o,flow,liquid'.split(',');
+// KEYWORDS[STONE] = ''.split(','); // stone doesn't fall, not good for this
+KEYWORDS[EARTH] = 'earth,soil,dirt,floor,ground'.split(',');
+KEYWORDS[GRASS] = 'grass,green,field,country'.split(',');
+
+
 function init() {
     canvas = $('canvas');
     canvas.width = W;
@@ -51,6 +63,8 @@ function init() {
     ctx = canvas.getContext('2d', { alpha: false });
     ctx.imageSmoothingEnabled = false;
     ctx.textBaseline = 'top';
+
+    options.sandy_mouse = $('#sandymouse').checked;
 
     document.addEventListener('keydown', on_key_down);
     canvas.addEventListener('mousedown', on_mouse);
@@ -61,7 +75,9 @@ function init() {
     setInterval(() => {
         cursor.caret = !cursor.caret;
     }, 500);
+    setup_drag_n_drop();
     new_file();
+    load_file(LOAD_FILE);
 
     fb = new OffscreenCanvas(W, H);
     fbctx = fb.getContext('2d', { antialias: false, alpha: false });
@@ -76,7 +92,7 @@ function new_file() {
     lines = new Array(MAX_LINES);
     for (let i = 0; i < lines.length; i++) {
         lines[i] = new Array(MAX_COLS);
-        lines[i].fill('');
+        lines[i].fill(BLANK);
     }
 
     world = new Array(H);
@@ -90,6 +106,72 @@ function new_file() {
         prev_world[i] = new Array(W);
         prev_world[i].fill(99);
     }
+
+    cursor = { x: 0, y: 0, col: 0, line: 0, caret: true };
+
+}
+
+function load_file(file) {
+
+    const sanitize = ch => {
+        ch = ch.toLowerCase();
+        const from = 'áéíóúñâêîôûäëïöü';
+        const to = 'aeiounaeiouaeiou';
+        const pos = from.indexOf(ch);
+        if (pos !== -1) return to[pos];
+        if (CHARS.indexOf(ch) !== -1) {
+            return ch;
+        }
+        return '?';
+    }
+
+    let line = 0;
+    let col = 0;
+    for (let ch of file) {
+        if (ch == '\r') continue;
+        if (ch == '\t') {
+            col += 2;
+        } if (ch == '\n') {
+            col = 0;
+            line++;
+            if (line >= MAX_LINES) {
+                break;
+            }
+        } else {
+            lines[line][col] = { brush: SAND, ch: sanitize(ch) };
+        }
+        col++;
+        if (col >= MAX_COLS) {
+            col = 0;
+            line++
+            if (line >= MAX_LINES) {
+                break;
+            }
+        }
+    }
+}
+
+function setup_drag_n_drop() {
+    let dropZone = document.body;
+    dropZone.addEventListener('dragover', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+    });
+    dropZone.addEventListener('drop', function (e) {
+        e.stopPropagation();
+        e.preventDefault();
+        let files = e.dataTransfer.files;
+        if (files.length == 0) { return; }
+
+        let reader = new FileReader();
+        reader.onload = function (e2) {
+            load_file(e2.target.result);
+        }
+        reader.readAsText(files[0]);
+    });
+
+
 }
 
 function onresize() {
@@ -106,7 +188,7 @@ function coords2xy(line, col) {
 
 function xy2coords(x, y) {
     return [
-        Math.max(0, Math.min(MAX_LINES, Math.floor((y - MARGIN) / LINE_HEIGHT))),
+        Math.max(0, Math.min(MAX_LINES - 1, Math.floor((y - MARGIN) / LINE_HEIGHT))),
         Math.max(0, Math.min(MAX_COLS, Math.floor((x - MARGIN) / CHARW))),
     ];
 }
@@ -122,56 +204,71 @@ function draw() {
     draw_editor()
 
     // draw caret
-    ctx.fillStyle = PALETTE[SAND][0];
     if (cursor.caret) {
-        ctx.fillRect(cursor.x, cursor.y, 2, CHARH);
+        ctx.fillStyle = PALETTE[brush_on_pos(cursor.line, cursor.col)][0];
+        ctx.fillRect(cursor.x - 1, cursor.y, 1, CHARH);
     }
 
 }
 
 /// EDITOR STUFF
 
-let KEYWORDS = [];
-KEYWORDS[SAND] = 'sand,beach'.split(',');
-KEYWORDS[WATER] = 'water,river,sea,ocean,h2o,flow,liquid'.split(',');
-// KEYWORDS[STONE] = ''.split(','); // stone doesn't fall, not good for editor
-KEYWORDS[EARTH] = 'earth,soil,dirt,floor'.split(',');
-KEYWORDS[GRASS] = 'grass,green,field,country'.split(',');
-
 function draw_editor() {
-    let brush = SAND;
     for (let line in lines) {
         for (let col in lines[line]) {
-            brush = update_editor_brush_from_keywords(brush, lines[line].join('').substr(col));
-            draw_char(coords2xy(line, col), lines[line][col], brush);
+            // brush = update_editor_brush_from_keywords(brush, lines[line].join('').substr(col));
+            draw_char(coords2xy(line, col), lines[line][col], true);
         }
     }
 }
 
-function update_editor_brush_from_keywords(curr_brush, line) {
-    for (let i in KEYWORDS) {
-        for (let j in KEYWORDS[i]) {
-            const keyword = KEYWORDS[i][j];
-            if (line.length < keyword.length) continue;
-            if (line.substring(0, keyword.length) == keyword) {
-                return i;
+function colorize_line(line) {
+    let brush = SAND;
+    let str = lines[line].map(c => c.ch).join("");
+
+    for (let s = 0; s < str.length; s++) {
+        let found = false;
+        for (let category in KEYWORDS) {
+            for (let i in KEYWORDS[category]) {
+                const keyword = KEYWORDS[category][i];
+                if (str.substr(s, KEYWORDS[category][i].length) == keyword) {
+                    brush = category;
+                    for (let j = 0; j < keyword.length; j++) {
+                        lines[line][s + j].brush = brush;
+                    }
+                    s += keyword.length;
+                    found = true;
+                }
             }
         }
+        if (!found) {
+            lines[line][s].brush = brush;
+        }
     }
-    return curr_brush;
 }
 
-function draw_char(coords, ch, brush) {
+function draw_char(coords, char, in_editor) {
+    const { brush, ch } = char;
     const glyph = FONT[ch] || '0000000000111100001001000010010000100100001001000011110000000000';
     if (ch == '' || ch == ' ') return;
     for (let y = 0, i = 0; y < CHARH; y++) {
         for (let x = 0; x < CHARW; x++, i++) {
-            ctx.fillStyle = glyph[i] == '1' ? PALETTE[brush][0] : PALETTE[AIR];
-            ctx.fillRect(coords[0] + x, coords[1] + y, 1, 1);
+            if (in_editor) {
+                ctx.fillStyle = (glyph[i] == '1') ? PALETTE[brush][0] : PALETTE[AIR];
+                ctx.fillRect(coords[0] + x, coords[1] + y, 1, 1);
+            } else {
+                if (glyph[i] == '1') {
+                    world[coords[1] + y][coords[0] + x] = brush;
+                }
+            }
         }
     }
+}
 
-    // ctx.fillText(ch, coords[0], coords[1]);
+function brush_on_pos(line, col) {
+    let brush = lines[line][col].brush;
+    if (brush == AIR) return SAND;
+    return brush;
 }
 
 function on_mouse(ev) {
@@ -182,22 +279,22 @@ function on_mouse(ev) {
         [cursor.line, cursor.col] = xy2coords(mx, my);
         cursor.caret = true;
 
-        if (SAND_WITH_MOUSE) {
-            paint(mx, my + CHARH, 2, SAND);
+        if (options.sandy_mouse) {
+
+            paint(mx, my + CHARH, 2, brush_on_pos(cursor.line, cursor.col));
         }
     }
 }
 
-
 function mouse_up(ev) {
     painting = false;
 }
+
 function mouse_move(ev) {
     if (!painting) return;
     mousex = Math.floor(ev.offsetX / SCALE);
     mousey = Math.floor(ev.offsetY / SCALE);
 }
-
 
 function on_key_down(ev) {
     if (ev.key == 'ArrowRight') {
@@ -217,32 +314,64 @@ function on_key_down(ev) {
             cursor.col = last_col_in_line(cursor.line);
         }
     }
+    else if (ev.key == 'ArrowUp') {
+        if (cursor.line > 0) cursor.line--;
+    }
+    else if (ev.key == 'ArrowDown') {
+        if (cursor.line < MAX_LINES - 1) cursor.line++;
+    }
     else if (ev.key == 'Backspace') {
         if (cursor.col > 0) {
             cursor.col--;
-            lines[cursor.line].splice(cursor.col, 1);
-            lines[cursor.line].push('');
+            const deleted = lines[cursor.line].splice(cursor.col, 1);
+            add_letters_to_world(deleted, cursor.line, cursor.col);
+            lines[cursor.line].push(BLANK);
+            colorize_line(cursor.line);
         } else if (cursor.line > 0) {
             cursor.line--;
-            // find last char
             cursor.col = last_col_in_line(cursor.line);
         }
     }
     else if (ev.key == 'Delete') {
-        lines[cursor.line].splice(cursor.col, 1);
-        lines[cursor.line].push('');
+        const deleted = lines[cursor.line].splice(cursor.col, 1);
+        add_letters_to_world(deleted, cursor.line, cursor.col);
+        lines[cursor.line].push(BLANK);
+        colorize_line(cursor.line);
     }
     else if (ev.key == 'Enter') {
-        add_enter();
+        if (ev.shiftKey) {
+            const deleted = lines[cursor.line].splice(0, MAX_COLS);
+            add_letters_to_world(deleted, cursor.line, 0);
+            lines[cursor.line] = new Array(MAX_COLS);
+            lines[cursor.line].fill(BLANK);
+        }
+        move_enter();
+    }
+    else if (ev.key == 'Escape') {
+        // delete all
+        for (let line in lines) {
+            add_letters_to_world(lines[line], line, 0);
+            lines[line].fill(BLANK);
+            cursor.col = 0;
+            cursor.line = 0;
+        }
+
     }
     else if (CHARS.indexOf(ev.key.toLowerCase()) !== -1) { // valid printable char
+        if (ev.key == 'r' && ev.ctrlKey) {
+            return;
+        }
         let ok = true;
         if (cursor.x >= W - CHARW) {
-            ok = add_enter();
+            ok = move_enter();
         }
         if (ok) {
-            lines[cursor.line][cursor.col] = ev.key.toLowerCase();
+            lines[cursor.line][cursor.col] = { brush: SAND, ch: ev.key.toLowerCase() };
+            colorize_line(cursor.line);
             cursor.col++;
+            ev.preventDefault();
+            ev.stopPropagation();
+
         }
 
     }
@@ -252,13 +381,13 @@ function on_key_down(ev) {
 function last_col_in_line(line) {
     let col = MAX_COLS - 1;
     while (col > 0) {
-        if (lines[line][col] != '') { break; }
+        if (lines[line][col].ch != ' ') { break; }
         col--;
     }
     return col + 1;
 }
 
-function add_enter() {
+function move_enter() {
     if (cursor.line < MAX_LINES - 1) {
         cursor.line++;
         cursor.col = 0;
@@ -270,6 +399,13 @@ function add_enter() {
 
 /// SIM STUFF
 
+function add_letters_to_world(letters, line, col) {
+    for (let l in letters) {
+        draw_char(coords2xy(line, col), letters[l], false);
+        col++;
+    }
+
+}
 
 function update_sand(x, y) {
     if (world[y][x] == SAND && (world[y + 1][x] == AIR || world[y + 1][x] == WATER)) {
@@ -366,7 +502,7 @@ function simulate() {
             update_plant(x, y);
         }
     }
-    for (let k = 0; k < 4; k++) {
+    for (let k = 0; k < 2; k++) {
         for (let y = H - 2; y > 1; y--) {
             for (let x = 1; x < W - 1; x++) {
                 if (world[y][x] == AIR) {

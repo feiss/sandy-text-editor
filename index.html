@@ -5,11 +5,52 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sandy Text Editor</title>
-    <link rel="stylesheet" href="style.css">
+    <style>
+        body {
+            background: #000;
+            font: 16px monospace;
+            color: #5f5f5f;
+            margin: 0;
+        }
+
+        canvas {
+            background: #222;
+            width: 90vw;
+            margin: 4vw;
+            image-rendering: pixelated;
+        }
+
+        #options {
+            line-height: 1.3rem;
+            margin: 4vw;
+            margin-top: 0;
+        }
+
+        b {
+            font-weight: normal;
+            color: #969696;
+        }
+
+        label,
+        a {
+            font-weight: normal;
+            color: #477fba;
+        }
+    </style>
 </head>
 
 <body>
     <canvas></canvas>
+    <div id="options">
+        <b>Shift+Enter</b> to sandify line <br>
+        <b>Escape</b> to sandify all <br>
+        You can <b>drag&drop</b> a text file<br>
+        <label><input type="checkbox" id="sandymouse" onclick="options.sandy_mouse = this.checked;">Enable sandy
+            mouse</label>
+        <br>
+        <br>
+        A very productive and advanced text editor by <a href="http://diegofg.com">Diego</a>
+    </div>
     <script src="font.js"></script>
     <script src="app.js"></script>
 </body>
